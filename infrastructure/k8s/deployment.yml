@@ -1,0 +1,413 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nlp-engine
+  namespace: echo-project
+  labels:
+    app: nlp-engine
+    component: ai
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nlp-engine
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: nlp-engine
+        component: ai
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+    spec:
+      containers:
+      - name: nlp-container
+        image: ${ECR_REPOSITORY_URI}/echo-nlp:latest
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+        ports:
+        - containerPort: 5000
+          name: http
+        - containerPort: 8000
+          name: metrics
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: MONGO_URI
+          valueFrom:
+            secretKeyRef:
+              name: echo-mongodb-credentials
+              key: uri
+        - name: MODEL_PATH
+          value: "/app/models"
+        - name: CARBON_MONITOR
+          value: "enabled"
+        - name: MAX_THREADS
+          value: "8"
+        - name: LOG_LEVEL
+          value: "INFO"
+        volumeMounts:
+        - name: nlp-models
+          mountPath: /app/models
+        - name: config-volume
+          mountPath: /app/config
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: nlp-models
+        persistentVolumeClaim:
+          claimName: nlp-models-pvc
+      - name: config-volume
+        configMap:
+          name: nlp-engine-config
+          items:
+          - key: config.json
+            path: config.json
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nlp-engine-service
+  namespace: echo-project
+  labels:
+    app: nlp-engine
+spec:
+  selector:
+    app: nlp-engine
+  ports:
+  - port: 5000
+    targetPort: 5000
+    name: http
+  - port: 8000
+    targetPort: 8000
+    name: metrics
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatbot-service
+  namespace: echo-project
+  labels:
+    app: chatbot-service
+    component: interaction
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: chatbot-service
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: chatbot-service
+        component: interaction
+    spec:
+      containers:
+      - name: chatbot-container
+        image: ${ECR_REPOSITORY_URI}/echo-chatbot:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5000
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: MONGO_URI
+          valueFrom:
+            secretKeyRef:
+              name: echo-mongodb-credentials
+              key: uri
+        - name: NLP_SERVICE_URL
+          value: "http://nlp-engine-service:5000"
+        - name: ALERT_SERVICE_URL
+          value: "http://alert-system-service:5001"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        volumeMounts:
+        - name: responses-volume
+          mountPath: /app/data
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 15
+      volumes:
+      - name: responses-volume
+        configMap:
+          name: chatbot-responses
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chatbot-service
+  namespace: echo-project
+spec:
+  selector:
+    app: chatbot-service
+  ports:
+  - port: 5000
+    targetPort: 5000
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alert-system
+  namespace: echo-project
+  labels:
+    app: alert-system
+    component: emergency
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: alert-system
+  template:
+    metadata:
+      labels:
+        app: alert-system
+        component: emergency
+    spec:
+      containers:
+      - name: alert-container
+        image: ${ECR_REPOSITORY_URI}/echo-alert:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5001
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: MONGO_URI
+          valueFrom:
+            secretKeyRef:
+              name: echo-mongodb-credentials
+              key: uri
+        - name: NOTIFICATION_SERVICE_URL
+          value: "http://notification-service:5003"
+        - name: DASHBOARD_SERVICE_URL
+          value: "http://dashboard-service:5004"
+        - name: EMERGENCY_MODE
+          value: "standard"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "400m"
+        volumeMounts:
+        - name: emergency-config
+          mountPath: /app/data
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 5001
+          initialDelaySeconds: 20
+          periodSeconds: 10
+      volumes:
+      - name: emergency-config
+        configMap:
+          name: emergency-services-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alert-system-service
+  namespace: echo-project
+spec:
+  selector:
+    app: alert-system
+  ports:
+  - port: 5001
+    targetPort: 5001
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nlp-engine-config
+  namespace: echo-project
+data:
+  config.json: |
+    {
+      "model_options": {
+        "use_gpu": true,
+        "batch_size": 32,
+        "max_sequence_length": 128,
+        "use_quantization": true
+      },
+      "language_support": [
+        "fr", "en", "es", "de", "it", "nl"
+      ],
+      "categories": [
+        "infrastructure",
+        "environnement",
+        "securite",
+        "administration",
+        "transport",
+        "sante",
+        "social"
+      ],
+      "performance": {
+        "cache_enabled": true,
+        "cache_size": 1000,
+        "low_memory_mode": false
+      },
+      "accessibility": {
+        "support_local_dialects": true,
+        "simple_language_option": true
+      }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: emergency-services-config
+  namespace: echo-project
+data:
+  emergency_services.json: |
+    {
+      "securite": [
+        {"name": "Police Municipale", "phone": "17", "email": "police@ville.fr"},
+        {"name": "Gendarmerie", "phone": "17", "email": "gendarmerie@ville.fr"}
+      ],
+      "incendie": [
+        {"name": "Pompiers", "phone": "18", "email": "pompiers@ville.fr"}
+      ],
+      "sante": [
+        {"name": "SAMU", "phone": "15", "email": "samu@ville.fr"},
+        {"name": "Hôpital Central", "phone": "04.XX.XX.XX.XX", "email": "urgences@hopital.fr"}
+      ],
+      "infrastructure": [
+        {"name": "Services Techniques", "phone": "04.XX.XX.XX.XX", "email": "technique@ville.fr"},
+        {"name": "Voirie", "phone": "04.XX.XX.XX.XX", "email": "voirie@ville.fr"}
+      ],
+      "environnement": [
+        {"name": "Service Environnement", "phone": "04.XX.XX.XX.XX", "email": "environnement@ville.fr"}
+      ]
+    }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nlp-engine-hpa
+  namespace: echo-project
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nlp-engine
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+    scaleUp:
+      stabilizationWindowSeconds: 60
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nlp-models-pvc
+  namespace: echo-project
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: efs-sc
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: echo-ingress
+  namespace: echo-project
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  tls:
+  - hosts:
+    - api.echo-project.org
+    - dashboard.echo-project.org
+    secretName: echo-tls
+  rules:
+  - host: api.echo-project.org
+    http:
+      paths:
+      - path: /api/nlp
+        pathType: Prefix
+        backend:
+          service:
+            name: nlp-engine-service
+            port:
+              number: 5000
+      - path: /api/chat
+        pathType: Prefix
+        backend:
+          service:
+            name: chatbot-service
+            port:
+              number: 5000
+      - path: /api/alerts
+        pathType: Prefix
+        backend:
+          service:
+            name: alert-system-service
+            port:
+              number: 5001
+  - host: dashboard.echo-project.org
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: dashboard-service
+            port:
+              number: 3000
