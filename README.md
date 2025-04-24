@@ -4,7 +4,8 @@
 
 ECHO est une plateforme innovante utilisant l'intelligence artificielle pour améliorer la communication entre les citoyens et les autorités publiques.
 
-![Logo ECHO](https://via.placeholder.com/800x200?text=Projet+ECHO)
+![echo2](https://github.com/user-attachments/assets/ab81e7dc-1fe4-4df0-a2e6-76131afcf77b)
+
 
 ## 📋 Présentation du projet
 
