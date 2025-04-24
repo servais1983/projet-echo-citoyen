@@ -127,7 +127,7 @@ Ce projet est sous licence [MIT](LICENSE.md).
 
 ## 📞 Contact
 
-Pour toute question concernant le projet ECHO, veuillez nous contacter à [contact@projet-echo.org](mailto:contact@projet-echo.org).
+Pour toute question concernant le projet ECHO, veuillez nous contacter à .
 
 ---
 
