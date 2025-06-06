@@ -1,0 +1,110 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+# Variables d'environnement globales
+env:
+  DOCKER_IMAGE: notification-service
+  DOCKER_TAG: ${{ github.sha }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+          
+      - name: Run tests
+        run: |
+          pytest --cov=app tests/
+          
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          # @secret CODECOV_TOKEN: Token d'accès à Codecov pour l'upload des rapports de couverture
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          # @secret DOCKERHUB_USERNAME: Nom d'utilisateur DockerHub pour l'authentification
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          # @secret DOCKERHUB_TOKEN: Token d'accès DockerHub pour l'authentification
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            # @secret DOCKERHUB_USERNAME: Nom d'utilisateur DockerHub pour le tag de l'image
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE }}:latest
+
+  deploy-staging:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Deploy to staging
+        uses: appleboy/ssh-action@master
+        with:
+          # @secret STAGING_HOST: Adresse IP ou nom d'hôte du serveur de staging
+          host: ${{ secrets.STAGING_HOST }}
+          # @secret STAGING_USERNAME: Nom d'utilisateur SSH pour le serveur de staging
+          username: ${{ secrets.STAGING_USERNAME }}
+          # @secret STAGING_SSH_KEY: Clé SSH privée pour l'accès au serveur de staging
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            # @secret DOCKERHUB_USERNAME: Nom d'utilisateur DockerHub pour le pull de l'image
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
+            docker-compose -f docker-compose.staging.yml up -d
+
+  deploy-production:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Deploy to production
+        uses: appleboy/ssh-action@master
+        with:
+          # @secret PROD_HOST: Adresse IP ou nom d'hôte du serveur de production
+          host: ${{ secrets.PROD_HOST }}
+          # @secret PROD_USERNAME: Nom d'utilisateur SSH pour le serveur de production
+          username: ${{ secrets.PROD_USERNAME }}
+          # @secret PROD_SSH_KEY: Clé SSH privée pour l'accès au serveur de production
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            # @secret DOCKERHUB_USERNAME: Nom d'utilisateur DockerHub pour le pull de l'image
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
+            docker-compose -f docker-compose.prod.yml up -d 

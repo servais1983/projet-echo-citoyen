@@ -1,0 +1,270 @@
+openapi: 3.0.0
+info:
+  title: API de Service de Notifications
+  description: |
+    API pour la gestion et l'envoi de notifications via différents canaux (email, Slack, SMS).
+    Le service gère les priorités, les réessais et la limitation de taux.
+  version: 1.0.0
+  contact:
+    name: Support Technique
+    email: support@example.com
+
+servers:
+  - url: http://localhost:5001
+    description: Serveur de développement
+  - url: https://api.notifications.example.com
+    description: Serveur de production
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Notification:
+      type: object
+      required:
+        - title
+        - content
+        - channel
+        - recipient
+        - priority
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Identifiant unique de la notification
+        title:
+          type: string
+          description: Titre de la notification
+        content:
+          type: string
+          description: Contenu de la notification
+        channel:
+          type: string
+          enum: [email, slack, sms]
+          description: Canal d'envoi de la notification
+        recipient:
+          type: string
+          description: Destinataire de la notification
+        priority:
+          type: string
+          enum: [low, medium, high]
+          description: Priorité de la notification
+        status:
+          type: string
+          enum: [pending, sent, failed]
+          description: Statut de la notification
+        created_at:
+          type: string
+          format: date-time
+          description: Date de création
+        sent_at:
+          type: string
+          format: date-time
+          description: Date d'envoi
+        retry_count:
+          type: integer
+          description: Nombre de tentatives d'envoi
+
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+          description: Message d'erreur détaillé
+        code:
+          type: string
+          description: Code d'erreur
+
+    BatchNotification:
+      type: object
+      properties:
+        notifications:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+          description: Liste des notifications à envoyer
+
+paths:
+  /notifications:
+    post:
+      summary: Créer et envoyer une notification
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Notification'
+      responses:
+        '200':
+          description: Notification créée et envoyée avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '400':
+          description: Données invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Non authentifié
+        '429':
+          description: Limite de taux dépassée
+
+    get:
+      summary: Lister les notifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, sent, failed]
+          description: Filtrer par statut
+        - name: channel
+          in: query
+          schema:
+            type: string
+            enum: [email, slack, sms]
+          description: Filtrer par canal
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [low, medium, high]
+          description: Filtrer par priorité
+      responses:
+        '200':
+          description: Liste des notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+        '401':
+          description: Non authentifié
+
+  /notifications/batch:
+    post:
+      summary: Envoyer un lot de notifications
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchNotification'
+      responses:
+        '200':
+          description: Lot de notifications traité avec succès
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+        '400':
+          description: Données invalides
+        '401':
+          description: Non authentifié
+        '429':
+          description: Limite de taux dépassée
+
+  /notifications/{notification_id}:
+    get:
+      summary: Obtenir les détails d'une notification
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: notification_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID de la notification
+      responses:
+        '200':
+          description: Détails de la notification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '404':
+          description: Notification non trouvée
+        '401':
+          description: Non authentifié
+
+    delete:
+      summary: Supprimer une notification
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: notification_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID de la notification
+      responses:
+        '204':
+          description: Notification supprimée avec succès
+        '404':
+          description: Notification non trouvée
+        '401':
+          description: Non authentifié
+
+  /notifications/stats:
+    get:
+      summary: Obtenir les statistiques des notifications
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Statistiques des notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                    description: Nombre total de notifications
+                  by_status:
+                    type: object
+                    properties:
+                      pending:
+                        type: integer
+                      sent:
+                        type: integer
+                      failed:
+                        type: integer
+                  by_channel:
+                    type: object
+                    properties:
+                      email:
+                        type: integer
+                      slack:
+                        type: integer
+                      sms:
+                        type: integer
+                  by_priority:
+                    type: object
+                    properties:
+                      low:
+                        type: integer
+                      medium:
+                        type: integer
+                      high:
+                        type: integer
+        '401':
+          description: Non authentifié 

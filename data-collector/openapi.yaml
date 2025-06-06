@@ -1,0 +1,378 @@
+openapi: 3.0.0
+info:
+  title: ECHO Data Collector API
+  description: API de collecte de données pour le projet ECHO Citoyen
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5002
+    description: Serveur de développement
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    DataSource:
+      type: object
+      required:
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          description: Nom de la source de données
+        type:
+          type: string
+          enum: [twitter, facebook, news, rss]
+          description: Type de source de données
+        config:
+          type: object
+          description: Configuration spécifique à la source
+        is_active:
+          type: boolean
+          default: true
+          description: État d'activation de la source
+
+    DataSourceResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Identifiant unique de la source
+        name:
+          type: string
+          description: Nom de la source
+        type:
+          type: string
+          enum: [twitter, facebook, news, rss]
+          description: Type de source
+        config:
+          type: object
+          description: Configuration de la source
+        is_active:
+          type: boolean
+          description: État d'activation
+        last_collection:
+          type: string
+          format: date-time
+          description: Dernière collecte réussie
+        created_at:
+          type: string
+          format: date-time
+          description: Date de création
+        updated_at:
+          type: string
+          format: date-time
+          description: Dernière mise à jour
+
+    CollectionTask:
+      type: object
+      required:
+        - source_id
+        - schedule
+      properties:
+        source_id:
+          type: integer
+          description: ID de la source de données
+        schedule:
+          type: string
+          description: Expression cron pour la planification
+        parameters:
+          type: object
+          description: Paramètres spécifiques à la collecte
+
+    CollectionTaskResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Identifiant unique de la tâche
+        source_id:
+          type: integer
+          description: ID de la source associée
+        schedule:
+          type: string
+          description: Expression cron
+        parameters:
+          type: object
+          description: Paramètres de collecte
+        last_run:
+          type: string
+          format: date-time
+          description: Dernière exécution
+        next_run:
+          type: string
+          format: date-time
+          description: Prochaine exécution planifiée
+        status:
+          type: string
+          enum: [active, paused, error]
+          description: État de la tâche
+
+    CollectionStats:
+      type: object
+      properties:
+        total_sources:
+          type: integer
+          description: Nombre total de sources
+        active_sources:
+          type: integer
+          description: Nombre de sources actives
+        total_tasks:
+          type: integer
+          description: Nombre total de tâches
+        active_tasks:
+          type: integer
+          description: Nombre de tâches actives
+        last_24h_collections:
+          type: integer
+          description: Nombre de collectes dans les 24h
+        sources_by_type:
+          type: object
+          properties:
+            twitter:
+              type: integer
+            facebook:
+              type: integer
+            news:
+              type: integer
+            rss:
+              type: integer
+
+paths:
+  /sources:
+    post:
+      summary: Créer une nouvelle source de données
+      description: Ajoute une nouvelle source de données au système
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataSource'
+      responses:
+        '201':
+          description: Source créée avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataSourceResponse'
+        '400':
+          description: Données invalides
+        '401':
+          description: Non authentifié
+
+    get:
+      summary: Lister les sources de données
+      description: Récupère la liste des sources de données
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [twitter, facebook, news, rss]
+          description: Filtrer par type
+        - in: query
+          name: is_active
+          schema:
+            type: boolean
+          description: Filtrer par état d'activation
+      responses:
+        '200':
+          description: Liste des sources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DataSourceResponse'
+        '401':
+          description: Non authentifié
+
+  /sources/{source_id}:
+    get:
+      summary: Obtenir une source de données
+      description: Récupère les détails d'une source spécifique
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: source_id
+          required: true
+          schema:
+            type: integer
+          description: ID de la source
+      responses:
+        '200':
+          description: Détails de la source
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataSourceResponse'
+        '404':
+          description: Source non trouvée
+        '401':
+          description: Non authentifié
+
+    put:
+      summary: Mettre à jour une source
+      description: Met à jour les informations d'une source
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: source_id
+          required: true
+          schema:
+            type: integer
+          description: ID de la source
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataSource'
+      responses:
+        '200':
+          description: Source mise à jour avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataSourceResponse'
+        '404':
+          description: Source non trouvée
+        '401':
+          description: Non authentifié
+
+  /tasks:
+    post:
+      summary: Créer une nouvelle tâche de collecte
+      description: Ajoute une nouvelle tâche de collecte planifiée
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectionTask'
+      responses:
+        '201':
+          description: Tâche créée avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionTaskResponse'
+        '400':
+          description: Données invalides
+        '401':
+          description: Non authentifié
+
+    get:
+      summary: Lister les tâches de collecte
+      description: Récupère la liste des tâches de collecte
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: source_id
+          schema:
+            type: integer
+          description: Filtrer par source
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, paused, error]
+          description: Filtrer par état
+      responses:
+        '200':
+          description: Liste des tâches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CollectionTaskResponse'
+        '401':
+          description: Non authentifié
+
+  /tasks/{task_id}:
+    get:
+      summary: Obtenir une tâche de collecte
+      description: Récupère les détails d'une tâche spécifique
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: task_id
+          required: true
+          schema:
+            type: integer
+          description: ID de la tâche
+      responses:
+        '200':
+          description: Détails de la tâche
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionTaskResponse'
+        '404':
+          description: Tâche non trouvée
+        '401':
+          description: Non authentifié
+
+    put:
+      summary: Mettre à jour une tâche
+      description: Met à jour les informations d'une tâche
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: task_id
+          required: true
+          schema:
+            type: integer
+          description: ID de la tâche
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectionTask'
+      responses:
+        '200':
+          description: Tâche mise à jour avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionTaskResponse'
+        '404':
+          description: Tâche non trouvée
+        '401':
+          description: Non authentifié
+
+  /stats:
+    get:
+      summary: Obtenir les statistiques de collecte
+      description: Récupère les statistiques globales de collecte
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Statistiques de collecte
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionStats'
+        '401':
+          description: Non authentifié 

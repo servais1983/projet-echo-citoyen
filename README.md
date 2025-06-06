@@ -18,6 +18,46 @@ ECHO (**E**nsemble pour la **C**ommunication **H**armonisée et **O**ptimisée) 
 - Automatiser les réponses aux questions courantes (démarches administratives, infrastructures...)
 - Améliorer la transparence en fournissant des retours structurés aux citoyens
 
+## 🚀 Démarrage rapide
+
+### Prérequis
+
+- Docker et Docker Compose
+- Python 3.8+
+- Node.js 16+
+- PostgreSQL 13+
+- MongoDB 4.4+
+
+### Installation
+
+1. Cloner le repository :
+```bash
+git clone https://github.com/votre-org/echo-citoyen.git
+cd echo-citoyen
+```
+
+2. Configurer les variables d'environnement :
+```bash
+cp .env.example .env
+# Éditer .env avec vos configurations
+```
+
+3. Lancer les services :
+```bash
+docker-compose up -d
+```
+
+4. Initialiser la base de données :
+```bash
+docker-compose exec api alembic upgrade head
+```
+
+5. Accéder aux services :
+- API Gateway : http://localhost:8000
+- Dashboard : http://localhost:3000
+- Grafana : http://localhost:3001
+- Prometheus : http://localhost:9090
+
 ## 🔍 Fonctionnalités clés de l'IA
 
 ### 📊 Traitement intelligent des données
@@ -128,6 +168,104 @@ Ce projet est sous licence [MIT](LICENSE.md).
 ## 📞 Contact
 
 Pour toute question concernant le projet ECHO, veuillez nous contacter à .
+
+## 🔒 Sécurité
+
+### Configuration de production
+
+1. Générer les certificats SSL :
+```bash
+./scripts/generate-ssl.sh
+```
+
+2. Configurer les secrets :
+```bash
+./scripts/setup-secrets.sh
+```
+
+3. Activer les fonctionnalités de sécurité :
+- Rate limiting
+- CORS
+- JWT validation
+- Input sanitization
+
+### Monitoring
+
+- Prometheus pour les métriques
+- Grafana pour les visualisations
+- ELK Stack pour les logs
+- AlertManager pour les alertes
+
+## 🧪 Tests
+
+### Tests unitaires
+```bash
+pytest
+```
+
+### Tests de couverture
+```bash
+pytest --cov=.
+```
+
+### Tests de charge
+```bash
+locust -f tests/load/locustfile.py
+```
+
+## 📦 Déploiement
+
+### Production
+
+1. Préparer l'environnement :
+```bash
+./scripts/prepare-production.sh
+```
+
+2. Déployer :
+```bash
+./scripts/deploy.sh
+```
+
+3. Vérifier le déploiement :
+```bash
+./scripts/health-check.sh
+```
+
+### Staging
+
+1. Déployer sur staging :
+```bash
+./scripts/deploy-staging.sh
+```
+
+2. Exécuter les tests d'intégration :
+```bash
+./scripts/run-integration-tests.sh
+```
+
+## 🔄 CI/CD
+
+Le projet utilise GitHub Actions pour la CI/CD. Voir [CI_CD.md](CI_CD.md) pour plus de détails.
+
+## 📊 Monitoring et Maintenance
+
+### Métriques clés
+- Temps de réponse API
+- Taux d'erreur
+- Utilisation CPU/Mémoire
+- Nombre de requêtes par minute
+
+### Alertes
+- Erreurs 5xx > 1%
+- Latence > 500ms
+- Utilisation CPU > 80%
+- Espace disque < 20%
+
+### Maintenance
+- Sauvegardes quotidiennes
+- Mises à jour de sécurité hebdomadaires
+- Nettoyage des logs mensuel
 
 ---
 

@@ -1,0 +1,62 @@
+groups:
+  - name: notification_service
+    rules:
+      # Alerte sur le taux d'erreur élevé
+      - alert: HighErrorRate
+        expr: rate(notification_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Taux d'erreur élevé dans le service de notifications"
+          description: "Le service de notifications présente un taux d'erreur de {{ $value }} sur les 5 dernières minutes"
+
+      # Alerte sur la latence élevée
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(notification_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latence élevée dans le service de notifications"
+          description: "Le service de notifications présente une latence p95 de {{ $value }}s sur les 5 dernières minutes"
+
+      # Alerte sur le nombre de notifications en attente
+      - alert: PendingNotifications
+        expr: notification_pending_total > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Nombre élevé de notifications en attente"
+          description: "Il y a {{ $value }} notifications en attente depuis plus de 10 minutes"
+
+      # Alerte sur les échecs d'envoi
+      - alert: FailedNotifications
+        expr: rate(notification_failures_total[15m]) > 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Échecs d'envoi de notifications"
+          description: "Le service de notifications rencontre des échecs d'envoi depuis 15 minutes"
+
+      # Alerte sur la mémoire
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Utilisation mémoire élevée"
+          description: "L'utilisation mémoire est de {{ $value }}%"
+
+      # Alerte sur le CPU
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Utilisation CPU élevée"
+          description: "L'utilisation CPU est de {{ $value }}%" 

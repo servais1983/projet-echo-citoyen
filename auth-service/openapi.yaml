@@ -1,0 +1,160 @@
+openapi: 3.0.0
+info:
+  title: ECHO Auth Service API
+  description: API d'authentification pour le projet ECHO Citoyen
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5003
+    description: Serveur de développement
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    UserCreate:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: Adresse email de l'utilisateur
+        password:
+          type: string
+          format: password
+          description: Mot de passe de l'utilisateur
+        is_admin:
+          type: boolean
+          default: false
+          description: Indique si l'utilisateur est un administrateur
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Identifiant unique de l'utilisateur
+        email:
+          type: string
+          format: email
+          description: Adresse email de l'utilisateur
+        is_active:
+          type: boolean
+          description: Indique si le compte est actif
+        is_admin:
+          type: boolean
+          description: Indique si l'utilisateur est un administrateur
+
+    Token:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: JWT token d'accès
+        token_type:
+          type: string
+          default: bearer
+          description: Type de token
+
+    TokenData:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email de l'utilisateur
+        is_admin:
+          type: boolean
+          description: Indique si l'utilisateur est un administrateur
+
+paths:
+  /register:
+    post:
+      summary: Créer un nouveau compte utilisateur
+      description: Enregistre un nouvel utilisateur dans le système
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        '201':
+          description: Utilisateur créé avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: Données invalides
+        '409':
+          description: Email déjà utilisé
+
+  /token:
+    post:
+      summary: Obtenir un token d'accès
+      description: Authentifie un utilisateur et retourne un JWT
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Token généré avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '401':
+          description: Identifiants invalides
+
+  /verify:
+    post:
+      summary: Vérifier un token
+      description: Vérifie la validité d'un token JWT
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Token valide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenData'
+        '401':
+          description: Token invalide ou expiré
+
+  /users/me:
+    get:
+      summary: Obtenir les informations de l'utilisateur connecté
+      description: Retourne les informations de l'utilisateur authentifié
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Informations utilisateur
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          description: Non authentifié 

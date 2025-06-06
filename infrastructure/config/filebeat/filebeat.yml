@@ -1,0 +1,26 @@
+filebeat.inputs:
+- type: container
+  paths:
+    - '/var/lib/docker/containers/*/*.log'
+
+processors:
+  - add_docker_metadata:
+      host: "unix:///var/run/docker.sock"
+
+output.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+  username: ${ELASTIC_USERNAME}
+  password: ${ELASTIC_PASSWORD}
+
+setup.kibana:
+  host: "kibana:5601"
+  username: ${ELASTIC_USERNAME}
+  password: ${ELASTIC_PASSWORD}
+
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644 

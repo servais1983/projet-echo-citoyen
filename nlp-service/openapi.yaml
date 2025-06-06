@@ -1,0 +1,230 @@
+openapi: 3.0.0
+info:
+  title: ECHO NLP Service API
+  description: API de traitement du langage naturel pour le projet ECHO Citoyen
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5004
+    description: Serveur de développement
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    TextAnalysis:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          description: Texte à analyser
+        language:
+          type: string
+          default: "fr"
+          description: Code de langue du texte
+
+    SentimentAnalysis:
+      type: object
+      properties:
+        text:
+          type: string
+          description: Texte analysé
+        sentiment:
+          type: string
+          enum: [positive, negative, neutral]
+          description: Sentiment détecté
+        score:
+          type: number
+          format: float
+          description: Score de confiance (-1 à 1)
+        language:
+          type: string
+          description: Langue détectée
+
+    EntityExtraction:
+      type: object
+      properties:
+        text:
+          type: string
+          description: Texte analysé
+        entities:
+          type: array
+          items:
+            type: object
+            properties:
+              text:
+                type: string
+                description: Texte de l'entité
+              type:
+                type: string
+                description: Type d'entité
+              start:
+                type: integer
+                description: Position de début
+              end:
+                type: integer
+                description: Position de fin
+              score:
+                type: number
+                format: float
+                description: Score de confiance
+
+    TopicExtraction:
+      type: object
+      properties:
+        text:
+          type: string
+          description: Texte analysé
+        topics:
+          type: array
+          items:
+            type: object
+            properties:
+              topic:
+                type: string
+                description: Sujet identifié
+              score:
+                type: number
+                format: float
+                description: Score de confiance
+              keywords:
+                type: array
+                items:
+                  type: string
+                description: Mots-clés associés
+
+    BatchAnalysis:
+      type: object
+      required:
+        - texts
+      properties:
+        texts:
+          type: array
+          items:
+            type: string
+          description: Liste de textes à analyser
+        language:
+          type: string
+          default: "fr"
+          description: Code de langue des textes
+
+    BatchAnalysisResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              text:
+                type: string
+                description: Texte analysé
+              sentiment:
+                $ref: '#/components/schemas/SentimentAnalysis'
+              entities:
+                $ref: '#/components/schemas/EntityExtraction'
+              topics:
+                $ref: '#/components/schemas/TopicExtraction'
+
+paths:
+  /analyze/sentiment:
+    post:
+      summary: Analyser le sentiment d'un texte
+      description: Détermine le sentiment et le score associé à un texte
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextAnalysis'
+      responses:
+        '200':
+          description: Analyse de sentiment réussie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SentimentAnalysis'
+        '400':
+          description: Données invalides
+        '401':
+          description: Non authentifié
+
+  /analyze/entities:
+    post:
+      summary: Extraire les entités d'un texte
+      description: Identifie et extrait les entités nommées d'un texte
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextAnalysis'
+      responses:
+        '200':
+          description: Extraction d'entités réussie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityExtraction'
+        '400':
+          description: Données invalides
+        '401':
+          description: Non authentifié
+
+  /analyze/topics:
+    post:
+      summary: Extraire les sujets d'un texte
+      description: Identifie les sujets principaux et les mots-clés associés
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextAnalysis'
+      responses:
+        '200':
+          description: Extraction de sujets réussie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopicExtraction'
+        '400':
+          description: Données invalides
+        '401':
+          description: Non authentifié
+
+  /analyze/batch:
+    post:
+      summary: Analyser un lot de textes
+      description: Effectue une analyse complète sur plusieurs textes
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchAnalysis'
+      responses:
+        '200':
+          description: Analyse par lot réussie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchAnalysisResponse'
+        '400':
+          description: Données invalides
+        '401':
+          description: Non authentifié 

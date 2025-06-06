@@ -1,25 +1,22 @@
 version: '3.8'
 
 services:
-  # API Gateway - Point d'entrée unique pour tous les services
+  # API Gateway
   api-gateway:
-    image: nginx:alpine
+    build: 
+      context: ../api-gateway
+      dockerfile: Dockerfile
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./config/nginx:/etc/nginx/conf.d
-      - ./ssl:/etc/nginx/ssl
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - REDIS_URL=redis://redis:6379
     depends_on:
-      - nlp-engine
-      - chatbot-service
-      - dashboard-service
-      - alert-system
-      - data-collector
+      - redis
       - auth-service
-    networks:
-      - echo-network
-    restart: unless-stopped
+      - chatbot-service
+      - nlp-engine
+      - dashboard-service
 
   # Service d'authentification
   auth-service:
@@ -27,60 +24,36 @@ services:
       context: ../auth-service
       dockerfile: Dockerfile
     environment:
-      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/echo_auth
       - JWT_SECRET=${JWT_SECRET}
-      - DB_URI=mongodb://mongo:27017/echo
-      - REDIS_URL=redis://redis:6379
+      - JWT_ALGORITHM=HS256
     depends_on:
-      - mongo
-      - redis
-    networks:
-      - echo-network
-    restart: unless-stopped
-
-  # Moteur de traitement du langage naturel
-  nlp-engine:
-    build:
-      context: ../nlp-engine
-      dockerfile: Dockerfile
-    volumes:
-      - ../nlp-engine:/app
-      - nlp-models:/app/models
-    environment:
-      - PYTHONUNBUFFERED=1
-      - MONGO_URI=mongodb://mongo:27017/echo
-      - MODEL_PATH=/app/models
-    depends_on:
-      - mongo
-    networks:
-      - echo-network
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 4G
-    restart: unless-stopped
+      - db
 
   # Service de chatbot
   chatbot-service:
     build:
       context: ../chatbot-service
       dockerfile: Dockerfile
-    volumes:
-      - ../chatbot-service:/app
-      - nlp-models:/app/models
     environment:
-      - PYTHONUNBUFFERED=1
-      - MONGO_URI=mongodb://mongo:27017/echo
       - NLP_SERVICE_URL=http://nlp-engine:5000
       - ALERT_SERVICE_URL=http://alert-system:5001
-      - ADMIN_SERVICE_URL=http://admin-service:5002
     depends_on:
       - nlp-engine
-      - mongo
-    networks:
-      - echo-network
-    restart: unless-stopped
+      - alert-system
+
+  # Moteur NLP
+  nlp-engine:
+    build:
+      context: ../nlp-engine
+      dockerfile: Dockerfile
+    environment:
+      - MODEL_PATH=/app/models
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - nlp_models:/app/models
+    depends_on:
+      - redis
 
   # Service de tableau de bord
   dashboard-service:
@@ -90,206 +63,65 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
-      - MONGO_URI=mongodb://mongo:27017/echo
-      - API_URL=http://api-gateway
+      - API_URL=http://api-gateway:8000
+      - MONGODB_URI=mongodb://mongodb:27017/echo_dashboard
     depends_on:
-      - mongo
+      - mongodb
       - api-gateway
-    networks:
-      - echo-network
-    restart: unless-stopped
 
   # Collecteur de données
   data-collector:
     build:
       context: ../data-collector
       dockerfile: Dockerfile
-    volumes:
-      - ../data-collector:/app
-      - collector-data:/app/data
     environment:
-      - PYTHONUNBUFFERED=1
-      - MONGO_URI=mongodb://mongo:27017/echo
-      - NLP_SERVICE_URL=http://nlp-engine:5000
-      - TWITTER_API_KEY=${TWITTER_API_KEY}
-      - TWITTER_API_SECRET=${TWITTER_API_SECRET}
-      - TWITTER_ACCESS_TOKEN=${TWITTER_ACCESS_TOKEN}
-      - TWITTER_ACCESS_SECRET=${TWITTER_ACCESS_SECRET}
+      - MONGODB_URI=mongodb://mongodb:27017/echo_data
+      - REDIS_URL=redis://redis:6379
     depends_on:
-      - mongo
-      - nlp-engine
-    networks:
-      - echo-network
-    restart: unless-stopped
+      - mongodb
+      - redis
 
   # Système d'alerte
   alert-system:
     build:
       context: ../alert-system
       dockerfile: Dockerfile
-    volumes:
-      - ../alert-system:/app
     environment:
-      - PYTHONUNBUFFERED=1
-      - MONGO_URI=mongodb://mongo:27017/echo
-      - NOTIFICATION_SERVICE_URL=http://notification-service:5003
-      - DASHBOARD_SERVICE_URL=http://dashboard-service:5004
-    depends_on:
-      - mongo
-      - notification-service
-    networks:
-      - echo-network
-    restart: unless-stopped
-
-  # Service de notification
-  notification-service:
-    build:
-      context: ../notification-service
-      dockerfile: Dockerfile
-    environment:
-      - NODE_ENV=production
-      - MONGO_URI=mongodb://mongo:27017/echo
       - REDIS_URL=redis://redis:6379
-      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
-      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
-      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+      - ALERT_THRESHOLD=0.8
     depends_on:
-      - mongo
       - redis
-    networks:
-      - echo-network
-    restart: unless-stopped
 
-  # Service admin
-  admin-service:
-    build:
-      context: ../admin-service
-      dockerfile: Dockerfile
+  # Base de données PostgreSQL
+  db:
+    image: postgres:15
     environment:
-      - NODE_ENV=production
-      - MONGO_URI=mongodb://mongo:27017/echo
-      - AUTH_SERVICE_URL=http://auth-service:5000
-    depends_on:
-      - mongo
-      - auth-service
-    networks:
-      - echo-network
-    restart: unless-stopped
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=echo_auth
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
 
-  # Base de données MongoDB
-  mongo:
+  # MongoDB
+  mongodb:
     image: mongo:6
     volumes:
-      - mongo-data:/data/db
-      - ./config/mongo:/docker-entrypoint-initdb.d
+      - mongodb_data:/data/db
     ports:
       - "27017:27017"
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
-      - MONGO_INITDB_DATABASE=echo
-    networks:
-      - echo-network
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 2G
 
-  # Cache Redis
+  # Redis
   redis:
-    image: redis:alpine
-    volumes:
-      - redis-data:/data
+    image: redis:7
     ports:
       - "6379:6379"
-    networks:
-      - echo-network
-    restart: unless-stopped
-
-  # Interface d'administration de la base de données
-  mongo-express:
-    image: mongo-express
-    ports:
-      - "8081:8081"
-    environment:
-      - ME_CONFIG_MONGODB_ADMINUSERNAME=${MONGO_ROOT_USER}
-      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_ROOT_PASSWORD}
-      - ME_CONFIG_MONGODB_SERVER=mongo
-      - ME_CONFIG_BASICAUTH_USERNAME=${MONGO_EXPRESS_USER}
-      - ME_CONFIG_BASICAUTH_PASSWORD=${MONGO_EXPRESS_PASSWORD}
-    depends_on:
-      - mongo
-    networks:
-      - echo-network
-    restart: unless-stopped
-    profiles:
-      - dev
-
-  # Monitoring avec Prometheus
-  prometheus:
-    image: prom/prometheus
     volumes:
-      - ./config/prometheus:/etc/prometheus
-      - prometheus-data:/prometheus
-    ports:
-      - "9090:9090"
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--web.enable-lifecycle'
-    networks:
-      - echo-network
-    restart: unless-stopped
-    profiles:
-      - monitoring
-
-  # Visualisation avec Grafana
-  grafana:
-    image: grafana/grafana
-    volumes:
-      - ./config/grafana/provisioning:/etc/grafana/provisioning
-      - grafana-data:/var/lib/grafana
-    ports:
-      - "3001:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
-      - GF_USERS_ALLOW_SIGN_UP=false
-    depends_on:
-      - prometheus
-    networks:
-      - echo-network
-    restart: unless-stopped
-    profiles:
-      - monitoring
-
-  # Collecteur de logs avec Filebeat
-  filebeat:
-    image: docker.elastic.co/beats/filebeat:8.6.0
-    volumes:
-      - ./config/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    user: root
-    networks:
-      - echo-network
-    restart: unless-stopped
-    profiles:
-      - monitoring
+      - redis_data:/data
 
 volumes:
-  mongo-data:
-  redis-data:
-  nlp-models:
-  collector-data:
-  prometheus-data:
-  grafana-data:
-
-networks:
-  echo-network:
-    driver: bridge
+  postgres_data:
+  mongodb_data:
+  redis_data:
+  nlp_models:

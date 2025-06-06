@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  notification-service:
+    image: ${DOCKER_REGISTRY:-registry.example.com}/notification-service:dev
+    container_name: notification-service-dev
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      - ENVIRONMENT=dev
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/notifications_dev
+      - REDIS_URL=redis://redis:6379/0
+      - SMTP_HOST=smtp.dev.example.com
+      - SMTP_PORT=587
+      - SMTP_USER=dev@example.com
+      - SMTP_PASSWORD=dev_password
+      - SLACK_WEBHOOK_URL=https://hooks.slack.com/services/dev/webhook
+      - TWILIO_ACCOUNT_SID=dev_account_sid
+      - TWILIO_AUTH_TOKEN=dev_auth_token
+      - TWILIO_PHONE_NUMBER=+1234567890
+      - JWT_SECRET_KEY=dev_secret_key
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      - db
+      - redis
+    networks:
+      - notification-network
+
+  db:
+    image: postgres:14-alpine
+    container_name: notification-db-dev
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=notifications_dev
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - notification-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: notification-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_dev:/data
+    networks:
+      - notification-network
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: notification-prometheus-dev
+    restart: unless-stopped
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./config/alert_rules.yml:/etc/prometheus/alert_rules.yml
+      - prometheus_data_dev:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - notification-network
+
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: notification-grafana-dev
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data_dev:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - notification-network
+
+volumes:
+  postgres_data_dev:
+  redis_data_dev:
+  prometheus_data_dev:
+  grafana_data_dev:
+
+networks:
+  notification-network:
+    driver: bridge 

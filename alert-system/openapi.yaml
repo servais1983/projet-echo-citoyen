@@ -1,0 +1,311 @@
+openapi: 3.0.0
+info:
+  title: ECHO Alert System API
+  description: API de gestion des alertes pour le projet ECHO Citoyen
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5001
+    description: Serveur de développement
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    AlertCreate:
+      type: object
+      required:
+        - title
+        - description
+        - severity
+        - category
+      properties:
+        title:
+          type: string
+          description: Titre de l'alerte
+        description:
+          type: string
+          description: Description détaillée de l'alerte
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+          description: Niveau de sévérité de l'alerte
+        category:
+          type: string
+          enum: [security, performance, system, business]
+          description: Catégorie de l'alerte
+        source:
+          type: string
+          description: Source de l'alerte
+        metadata:
+          type: object
+          description: Métadonnées supplémentaires
+
+    AlertResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Identifiant unique de l'alerte
+        title:
+          type: string
+          description: Titre de l'alerte
+        description:
+          type: string
+          description: Description de l'alerte
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+          description: Niveau de sévérité
+        category:
+          type: string
+          enum: [security, performance, system, business]
+          description: Catégorie de l'alerte
+        status:
+          type: string
+          enum: [active, resolved, acknowledged]
+          description: État actuel de l'alerte
+        source:
+          type: string
+          description: Source de l'alerte
+        created_at:
+          type: string
+          format: date-time
+          description: Date de création
+        updated_at:
+          type: string
+          format: date-time
+          description: Dernière mise à jour
+        metadata:
+          type: object
+          description: Métadonnées supplémentaires
+
+    AlertUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          description: Nouveau titre de l'alerte
+        description:
+          type: string
+          description: Nouvelle description
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+          description: Nouveau niveau de sévérité
+        category:
+          type: string
+          enum: [security, performance, system, business]
+          description: Nouvelle catégorie
+        status:
+          type: string
+          enum: [active, resolved, acknowledged]
+          description: Nouvel état
+        metadata:
+          type: object
+          description: Nouvelles métadonnées
+
+    AlertStats:
+      type: object
+      properties:
+        total_alerts:
+          type: integer
+          description: Nombre total d'alertes
+        active_alerts:
+          type: integer
+          description: Nombre d'alertes actives
+        alerts_by_severity:
+          type: object
+          properties:
+            low:
+              type: integer
+            medium:
+              type: integer
+            high:
+              type: integer
+            critical:
+              type: integer
+        alerts_by_category:
+          type: object
+          properties:
+            security:
+              type: integer
+            performance:
+              type: integer
+            system:
+              type: integer
+            business:
+              type: integer
+
+paths:
+  /alerts:
+    post:
+      summary: Créer une nouvelle alerte
+      description: Crée une nouvelle alerte dans le système
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertCreate'
+      responses:
+        '201':
+          description: Alerte créée avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertResponse'
+        '400':
+          description: Données invalides
+        '401':
+          description: Non authentifié
+
+    get:
+      summary: Lister les alertes
+      description: Récupère la liste des alertes avec filtres optionnels
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, resolved, acknowledged]
+          description: Filtrer par état
+        - in: query
+          name: severity
+          schema:
+            type: string
+            enum: [low, medium, high, critical]
+          description: Filtrer par sévérité
+        - in: query
+          name: category
+          schema:
+            type: string
+            enum: [security, performance, system, business]
+          description: Filtrer par catégorie
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+          description: Nombre maximum d'alertes à retourner
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+          description: Décalage pour la pagination
+      responses:
+        '200':
+          description: Liste des alertes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AlertResponse'
+        '401':
+          description: Non authentifié
+
+  /alerts/{alert_id}:
+    get:
+      summary: Obtenir une alerte
+      description: Récupère les détails d'une alerte spécifique
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: alert_id
+          required: true
+          schema:
+            type: integer
+          description: ID de l'alerte
+      responses:
+        '200':
+          description: Détails de l'alerte
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertResponse'
+        '404':
+          description: Alerte non trouvée
+        '401':
+          description: Non authentifié
+
+    put:
+      summary: Mettre à jour une alerte
+      description: Met à jour les informations d'une alerte
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: alert_id
+          required: true
+          schema:
+            type: integer
+          description: ID de l'alerte
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertUpdate'
+      responses:
+        '200':
+          description: Alerte mise à jour avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertResponse'
+        '404':
+          description: Alerte non trouvée
+        '401':
+          description: Non authentifié
+
+  /alerts/{alert_id}/resolve:
+    post:
+      summary: Résoudre une alerte
+      description: Marque une alerte comme résolue
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: alert_id
+          required: true
+          schema:
+            type: integer
+          description: ID de l'alerte
+      responses:
+        '200':
+          description: Alerte résolue avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertResponse'
+        '404':
+          description: Alerte non trouvée
+        '401':
+          description: Non authentifié
+
+  /alerts/stats:
+    get:
+      summary: Obtenir les statistiques des alertes
+      description: Récupère les statistiques globales des alertes
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Statistiques des alertes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertStats'
+        '401':
+          description: Non authentifié 

@@ -1,0 +1,32 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:8000']
+
+  - job_name: 'chatbot-service'
+    static_configs:
+      - targets: ['chatbot-service:5000']
+
+  - job_name: 'nlp-engine'
+    static_configs:
+      - targets: ['nlp-engine:5000']
+
+  - job_name: 'dashboard-service'
+    static_configs:
+      - targets: ['dashboard-service:3000']
+
+  - job_name: 'alert-system'
+    static_configs:
+      - targets: ['alert-system:5001']
+
+  - job_name: 'data-collector'
+    static_configs:
+      - targets: ['data-collector:5002']
+
+  - job_name: 'auth-service'
+    static_configs:
+      - targets: ['auth-service:5003'] 

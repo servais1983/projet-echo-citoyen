@@ -1,0 +1,30 @@
+# Dépendances principales
+fastapi==0.109.2
+uvicorn==0.27.1
+sqlalchemy==2.0.27
+pydantic==2.6.1
+pydantic[email]
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.9
+python-dotenv==1.0.1
+requests==2.31.0
+twilio==8.12.0
+prometheus-client==0.19.0
+
+# Dépendances de test
+pytest==8.0.1
+pytest-cov==4.1.0
+pytest-asyncio==0.21.1
+httpx==0.26.0
+pytest-mock==3.12.0
+pytest-env==1.1.1
+pytest-xdist==3.3.1
+
+# Dépendances supplémentaires
+aiohttp==3.9.3
+redis==5.0.1
+celery==5.3.6
+flower==2.0.1
+firebase-admin==6.4.0
+tenacity==8.2.3 
